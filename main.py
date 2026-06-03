@@ -34,6 +34,18 @@ class JSONFormatter(logging.Formatter):
             "request_id": getattr(record, "request_id", "N/A"),
             "message": record.getMessage()
         }
+        
+        # Include custom extra fields passed to logger (like environment, port, etc.)
+        standard_fields = {
+            "args", "asctime", "created", "exc_info", "exc_text", "filename",
+            "funcName", "levelname", "levelno", "lineno", "message", "module",
+            "msecs", "msg", "name", "pathname", "process", "processName",
+            "relativeCreated", "stack_info", "thread", "threadName", "request_id"
+        }
+        for key, value in record.__dict__.items():
+            if key not in standard_fields:
+                log_entry[key] = value
+
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
         return json.dumps(log_entry)
