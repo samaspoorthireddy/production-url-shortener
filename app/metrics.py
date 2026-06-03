@@ -9,7 +9,7 @@ Exposes:
   url_validation_blocks_total — Counter of security-blocked URL attempts
 """
 
-from prometheus_client import Counter, Histogram, REGISTRY, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Histogram, Gauge, REGISTRY, generate_latest, CONTENT_TYPE_LATEST
 
 # ---------------------------------------------------------------------------
 # R — Rate: total requests labelled by method, endpoint pattern, status class
@@ -53,6 +53,14 @@ CACHE_OPS_TOTAL = Counter(
     "cache_ops_total",
     "Redis cache operations",
     ["operation", "result"],  # operation: get/set, result: hit/miss/error
+)
+
+# ---------------------------------------------------------------------------
+# Business Gauge — tracks total URLs stored in database
+# ---------------------------------------------------------------------------
+STORED_URLS_COUNT = Gauge(
+    "stored_urls_count",
+    "Total number of shortened URLs stored in the database",
 )
 
 
@@ -118,4 +126,16 @@ def record_security_block(reason: str):
 
 def get_metrics_output() -> tuple[bytes, str]:
     """Returns (body_bytes, content_type) for the /metrics endpoint."""
+    try:
+        from database import SessionLocal
+        from models import Link
+        db = SessionLocal()
+        try:
+            count = db.query(Link).count()
+            STORED_URLS_COUNT.set(count)
+        finally:
+            db.close()
+    except Exception:
+        # Prevent metrics endpoint from crashing if db is unreachable
+        pass
     return generate_latest(REGISTRY), CONTENT_TYPE_LATEST

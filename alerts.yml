@@ -1,0 +1,44 @@
+# Prometheus Alerting Rules for url-shortener
+groups:
+  - name: url-shortener-alerts
+    rules:
+      # --- Alert 1: High Error Rate ---
+      # Description: Fires if HTTP 5xx error rate exceeds 5% for more than 2 minutes.
+      - alert: HighErrorRate
+        expr: |
+          rate(http_requests_total{status_code="5xx"}[5m])
+          / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP error rate (exceeds 5%) on {{ $labels.instance }}"
+          description: "The service {{ $labels.service }} is experiencing a 5xx error rate of {{ $value | humanizePercentage }} over a 5-minute rolling window."
+          runbook: "file:///Users/spoorthireddy/.gemini/antigravity/scratch/url-shortener/runbook.md#high-error-rate"
+
+      # --- Alert 2: High Latency ---
+      # Description: Fires if 95th percentile response latency exceeds 2 seconds for more than 3 minutes.
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "95th percentile latency exceeds 2 seconds on {{ $labels.instance }}"
+          description: "The service {{ $labels.service }} p95 response time is {{ $value | humanizeDuration }}, meaning 5% of requests take more than 2 seconds."
+          runbook: "file:///Users/spoorthireddy/.gemini/antigravity/scratch/url-shortener/runbook.md#high-latency"
+
+      # --- Alert 3: Service Down ---
+      # Description: Fires if Prometheus scraper cannot reach the /metrics endpoint for more than 1 minute.
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "The service instance {{ $labels.instance }} is unreachable and has failed scraping for over 1 minute."
+          runbook: "file:///Users/spoorthireddy/.gemini/antigravity/scratch/url-shortener/runbook.md#service-down"

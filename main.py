@@ -206,10 +206,17 @@ async def log_and_time_requests(request: Request, call_next):
         response.headers["X-Request-ID"] = req_id
         return response
     except Exception as e:
-        latency_ms = int((time.perf_counter() - start_time) * 1000)
+        duration_s = time.perf_counter() - start_time
+        latency_ms = int(duration_s * 1000)
         logger.error(
             f"Request failed: {request.method} {request.url.path} "
             f"latency_ms={latency_ms} error={str(e)}"
+        )
+        record_request(
+            method=request.method,
+            path=request.url.path,
+            status_code=500,
+            duration_seconds=duration_s,
         )
         raise e
 
