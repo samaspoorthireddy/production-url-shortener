@@ -1,0 +1,234 @@
+# CI/CD Pipeline — url-shortener (Production Readiness Module 02)
+#
+# Pipeline shape: Sequential (Lint → Test → Build → Push)
+# Why sequential: clear failure points, easy to debug, correct for this stage.
+# Parallelize lint+test only when pipeline speed becomes a real bottleneck.
+#
+# Secrets required (set in repo Settings → Secrets and variables → Actions):
+#   REGISTRY_USERNAME  — Docker Hub / ghcr.io username
+#   REGISTRY_PASSWORD  — Docker Hub token or GitHub PAT with packages:write
+
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+
+# Cancel any in-progress run for the same branch when a new push arrives.
+# This prevents a slow CI run from blocking a faster follow-up push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────
+  # STAGE 1: Lint
+  # Checks code style and catches common mistakes
+  # before running the full test suite.
+  # Fast fail: if linting fails, tests don't start.
+  # ─────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Cache pip downloads so repeated runs skip re-downloading packages.
+      # Cache key includes the OS and requirements hash — invalidated only
+      # when requirements.txt changes.
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install lint tools
+        run: pip install flake8
+
+      - name: Run flake8
+        # E501: line too long (relaxed to 120 chars — strict 79 is impractical for modern code)
+        # W503: line break before binary operator (conflicts with Black formatter)
+        # scripts/: one-off utility scripts, excluded from CI lint
+        # tests/: E402 allowed (conftest.py must set env vars before imports)
+        # tests/: F401 allowed (fixtures imported via conftest, appear unused to flake8)
+        run: |
+          flake8 . \
+            --max-line-length=120 \
+            --extend-ignore=E501,W503 \
+            --exclude=.git,__pycache__,.venv,migrations,scripts \
+            --per-file-ignores="tests/*:E402,F401,W293,E302,W391"
+
+  # ─────────────────────────────────────────────
+  # STAGE 2: Test
+  # Runs the full test suite against a real
+  # PostgreSQL instance (same stack as production).
+  # Only runs if lint passed (sequential pipeline).
+  # ─────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint  # Sequential: test waits for lint to pass
+
+    services:
+      # Spin up a real PostgreSQL container for tests.
+      # This matches production — tests against SQLite would miss
+      # psycopg2-specific behaviors and query differences.
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: upsk_sdf_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/upsk_sdf_test
+        run: |
+          pytest tests/ \
+            --tb=short \
+            --maxfail=5 \
+            -q
+
+  # ─────────────────────────────────────────────
+  # STAGE 3: Docker Build
+  # Builds the container image and checks its size.
+  # Only runs if tests passed (sequential pipeline).
+  # Does NOT push — proves build works first.
+  # ─────────────────────────────────────────────
+  build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test  # Sequential: build waits for all tests to pass
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Tag the image with the exact git commit SHA.
+      # Why SHA instead of "latest"?
+      # "latest" is a lie — it means "whatever was last tagged latest."
+      # A SHA like a1b2c3d4 is immutable: it tells you exactly which
+      # commit built this image. Traceability at 2 AM is worth everything.
+      - name: Set image tag
+        id: tag
+        run: echo "TAG=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t myservice:${{ steps.tag.outputs.TAG }} \
+            -t myservice:latest \
+            .
+
+      # Image size gate: fail the pipeline if the image exceeds 200 MB.
+      # This catches accidental bloat (forgetting .dockerignore, adding
+      # a heavy dev dependency to the wrong requirements, etc.) before
+      # it reaches the registry.
+      - name: Check image size
+        run: |
+          IMAGE_SIZE=$(docker image inspect myservice:${{ steps.tag.outputs.TAG }} --format='{{.Size}}')
+          IMAGE_SIZE_MB=$((IMAGE_SIZE / 1024 / 1024))
+          echo "Image size: ${IMAGE_SIZE_MB} MB"
+          if [ "$IMAGE_SIZE_MB" -gt 200 ]; then
+            echo "❌ Image size ${IMAGE_SIZE_MB} MB exceeds 200 MB threshold!"
+            exit 1
+          fi
+          echo "✅ Image size ${IMAGE_SIZE_MB} MB is within the 200 MB limit."
+
+      - name: Verify health endpoint is defined
+        run: |
+          # Confirm the /health route exists in source — catch route renames before runtime
+          grep -r '"/health"' main.py || grep -r "'/health'" main.py
+          echo "✅ /health route confirmed in source"
+
+  # ─────────────────────────────────────────────
+  # STAGE 4: Push to Registry
+  # Only runs on pushes to main (not PRs).
+  # Feature branches run lint + test + build but
+  # do NOT pollute the registry with every branch.
+  # ─────────────────────────────────────────────
+  push:
+    name: Push to Registry
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build  # Sequential: push waits for build to pass
+
+    # Only push on direct pushes to main — not on pull requests.
+    # PRs prove the code works; only merged code goes to the registry.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: tag
+        run: echo "TAG=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      # Secrets live in repo Settings → Secrets and variables → Actions.
+      # They are NEVER in this file. GitHub encrypts them and masks them
+      # in logs — if a secret value appears in output, it shows as ***.
+      # Hardcoding credentials here would expose them to anyone who can
+      # read the repo, and they would be in git history forever.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ secrets.REGISTRY_USERNAME }}/myservice:${{ steps.tag.outputs.TAG }}
+            ghcr.io/${{ secrets.REGISTRY_USERNAME }}/myservice:latest
+
+      # Print the pushed image tag to logs for traceability.
+      # This is a confirmation step — NOT a credential dump.
+      - name: Print pushed image tag
+        run: |
+          echo "✅ Pushed: ghcr.io/${{ secrets.REGISTRY_USERNAME }}/myservice:${{ steps.tag.outputs.TAG }}"

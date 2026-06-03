@@ -1,0 +1,55 @@
+# Git history — can be hundreds of MB. Never ship this.
+.git
+.gitignore
+
+# Local node/python dependency directories — we reinstall inside the container.
+node_modules
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Test files have no business in production images.
+tests/
+__tests__/
+*.test.py
+*.spec.py
+conftest.py
+pytest.ini
+.pytest_cache
+.coverage
+coverage/
+htmlcov/
+.nyc_output/
+
+# Environment files contain secrets — NEVER ship these.
+.env
+.env.*
+!.env.example
+
+# Build artifacts (we copy from builder stage, not local builds)
+dist/
+build/
+*.egg-info/
+
+# Documentation (not needed at runtime)
+*.md
+docs/
+
+# CI/CD configs
+.github/
+.gitlab-ci.yml
+
+# Editor / OS artifacts
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker itself
+Dockerfile*
+docker-compose*.yml
+.dockerignore

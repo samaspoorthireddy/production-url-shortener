@@ -1,0 +1,10 @@
+# Module 07 PM Impact Statement
+
+To secure the Meridian Corp contract and hit our 6-day investor demo deadline, we are adjusting our focus: the demo will show the complete booking flow, including B2B delegation where corporate admins can book slots directly on behalf of employees. To accommodate this under the compressed timeline, we are cutting the advanced search filters, provider analytics dashboard, and live Stripe payments from this release; these features will ship the following week. We will use simulated payments to demonstrate the booking checkout successfully. The main risk item is integration testing: if user authentication updates cause data validation errors in the existing frontend, the UI layout might require manual patches. I need one thing from you today: an introduction to Meridian's IT contact so we can align on their employee email lookup schema before we lock the delegation UI.
+
+---
+
+## REVISION 2: Role-Based Access & Department Scopes Addition
+
+Following the additional security and department visibility requirements from Meridian's IT director:
+The investor demo will still deliver on the 6-day timeline and will now successfully demonstrate role-based access: Managers booking for any employee, Department Heads viewing bookings inside their specific department, and Employees restricted to their own history. To implement this secure architecture, we are pivoting to a proper relational database layout for roles and departments, but we will seed this data directly in the database rather than building user-facing setup screens. To protect the timeline, we are cutting the provider category browsing UI and category search filters—the homepage will display a single static grid of all available providers instead. The primary risk is that if Meridian’s IT department requires custom Active Directory/LDAP role sync, it will slip past the 6-day demo; we will demo using seeded local accounts instead. I need you to confirm that showing this role validation with local mock accounts is acceptable for the Meridian contract signing.
