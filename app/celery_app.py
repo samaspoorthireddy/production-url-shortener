@@ -1,8 +1,7 @@
-import os
 from celery import Celery
+from app.config import settings
 
-# Redis configuration URL matching our cache service
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = settings.redis_url
 
 celery_app = Celery(
     "url_shortener_tasks",

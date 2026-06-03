@@ -6,9 +6,11 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from app.config import settings, Environment
 from database import Base, engine
 from app.routers import links, redirect, webhooks
 from app.routers import links_v2
@@ -38,7 +40,7 @@ class JSONFormatter(logging.Formatter):
 
 
 # Setup structured console logging (JSON formatted)
-log_level_env = os.getenv("LOG_LEVEL", "INFO").upper()
+log_level_env = settings.log_level.upper()
 log_level = getattr(logging, log_level_env, logging.INFO)
 
 logging.basicConfig(level=log_level)
@@ -82,8 +84,15 @@ except Exception as e:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: log startup sequence
-    logger.info("Application starting up...")
+    # Startup: log startup sequence with environment details
+    logger.info(
+        "Service starting",
+        extra={
+            "environment": settings.app_env.value,
+            "port": settings.port,
+            "log_level": settings.log_level,
+        },
+    )
     yield
     # Shutdown: graceful drainage of Redis client and SQLAlchemy engine connections
     logger.info("Application shutting down. Draining active connections...")
@@ -105,11 +114,21 @@ async def lifespan(app: FastAPI):
 
     logger.info("Graceful shutdown completed successfully.")
 
+
 app = FastAPI(
     title="Upsk URL Shortener",
     description="A high-performance system design URL shortener built with FastAPI and PostgreSQL.",
     version="1.0.0",
     lifespan=lifespan
+)
+
+# CORS configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.cors_origin],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Custom Error Envelope JSON response helper
@@ -243,11 +262,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     # Log the complete traceback inside the server log where it belongs
     logger.exception(f"Unhandled server error: {str(exc)}")
 
-    # Return a completely safe, generic 500 error envelope to the client (no leak!)
+    # Return environment-aware 500 error envelope to the client
+    show_details = settings.app_env in (
+        Environment.development,
+        Environment.staging,
+    )
+    message = "An unexpected error occurred. Please contact support and reference the Request ID."
+    if show_details:
+        message = f"Internal Server Error: {str(exc)}"
+
     return build_error_response(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         code="INTERNAL_SERVER_ERROR",
-        message="An unexpected error occurred. Please contact support and reference the Request ID.",
+        message=message,
         request_id=req_id
     )
 

@@ -1,13 +1,9 @@
-import os
+from app.config import settings
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Default local database URL
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/upsk_sdf"
-)
+DATABASE_URL = settings.database_url
 
 # Create the SQLAlchemy engine with production-grade timeouts and connection checks
 engine = create_engine(

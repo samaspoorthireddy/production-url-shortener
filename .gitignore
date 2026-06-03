@@ -1,0 +1,28 @@
+# Environment variables (contains production secrets!)
+.env
+
+# Python caching & bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local databases & artifacts
+test.db
+artifacts/
+*.tar
