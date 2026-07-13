@@ -171,3 +171,38 @@ def test_url_validation_bypasses(client):
     res_userinfo = client.post("/v1/links/", json=payload_userinfo, headers=HEADERS_A)
     assert res_userinfo.status_code == 422
     assert "user information" in res_userinfo.json()["error"]["message"].lower()
+
+
+def test_database_timeout_handler(client):
+    """
+    Verifies that when database connection pool timeout occurs (DBTimeoutError),
+    the custom exception handler catches it and returns HTTP 503 Service Unavailable.
+    """
+    from unittest.mock import patch
+    from sqlalchemy.exc import TimeoutError as DBTimeoutError
+
+    with patch("app.services.links_service.create_link", side_effect=DBTimeoutError("Queue Pool limit of size 10 overflow 5 reached, connection timed out, timeout 10")):
+        payload = {"long_url": "https://www.example.com"}
+        response = client.post("/v1/links/", json=payload, headers=HEADERS_A)
+        assert response.status_code == 503
+        data = response.json()
+        assert data["error"]["code"] == "SERVICE_UNAVAILABLE"
+        assert "Database connection pool exhausted" in data["error"]["message"]
+
+
+def test_database_operational_handler(client):
+    """
+    Verifies that when a database operational/connection failure occurs (DBOperationalError),
+    the custom exception handler catches it and returns HTTP 503 Service Unavailable.
+    """
+    from unittest.mock import patch
+    from sqlalchemy.exc import OperationalError as DBOperationalError
+
+    with patch("app.services.links_service.create_link", side_effect=DBOperationalError("connection refused", {}, None)):
+        payload = {"long_url": "https://www.example.com"}
+        response = client.post("/v1/links/", json=payload, headers=HEADERS_A)
+        assert response.status_code == 503
+        data = response.json()
+        assert data["error"]["code"] == "SERVICE_UNAVAILABLE"
+        assert "Database service is temporarily unavailable" in data["error"]["message"]
+

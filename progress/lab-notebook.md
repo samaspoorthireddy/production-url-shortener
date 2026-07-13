@@ -156,3 +156,127 @@ x-request-id: 6f64839e-2b0e-4af8-9c6a-971445822cd4
 
   {"results":[{"id":57,"code":"OJvJow5E","long_url":"https://example.org","short_url":"http://localhost:8000/r/OJvJow5E","created_at":"2026-06-01T09:14:02.747126","created_by":"user_a","tags":[],"click_count":0}],"metadata":{"page":1,"page_size":10,"total_records":1,"total_pages":1}}
   ```
+
+---
+
+## 6. Team Collaboration and Real-time Feed Verification
+
+### A. Team Creation
+- **Request**:
+  ```bash
+  curl -i -X POST http://localhost:8000/teams/ \
+    -H "X-API-Key: API_KEY_A" \
+    -H "Content-Type: application/json" \
+    -d '{"name": "DevOps Team", "description": "Infrastructure engineering"}'
+  ```
+- **Response**:
+  ```json
+  {
+    "id": 1,
+    "name": "DevOps Team",
+    "description": "Infrastructure engineering",
+    "owner_id": "user_a",
+    "created_at": "2026-06-08T12:00:00.000000+00:00",
+    "updated_at": "2026-06-08T12:00:00.000000+00:00"
+  }
+  ```
+
+### B. Invitation Flow
+- **Request (Invite user_b)**:
+  ```bash
+  curl -i -X POST http://localhost:8000/teams/1/invitations \
+    -H "X-API-Key: API_KEY_A" \
+    -H "Content-Type: application/json" \
+    -d '{"email": "user_b@example.com", "role": "member"}'
+  ```
+- **Response**:
+  ```json
+  {
+    "id": 1,
+    "team_id": 1,
+    "email": "user_b@example.com",
+    "role": "member",
+    "token": "a1b2c3d4e5f6g7h8i9j0",
+    "status": "pending",
+    "created_at": "2026-06-08T12:01:00.000000+00:00",
+    "expires_at": "2026-06-09T12:01:00.000000+00:00"
+  }
+  ```
+
+- **Request (user_b accepts invitation)**:
+  ```bash
+  curl -i -X POST http://localhost:8000/teams/invitations/accept \
+    -H "X-API-Key: API_KEY_B" \
+    -H "Content-Type: application/json" \
+    -d '{"token": "a1b2c3d4e5f6g7h8i9j0"}'
+  ```
+- **Response**:
+  ```json
+  {
+    "id": 2,
+    "user_id": "user_b",
+    "team_id": 1,
+    "role": "member",
+    "joined_at": "2026-06-08T12:02:00.000000+00:00"
+  }
+  ```
+
+### C. Comment Thread & Mentions
+- **Request (Create comments thread)**:
+  ```bash
+  curl -i -X POST http://localhost:8000/threads \
+    -H "X-API-Key: API_KEY_B" \
+    -H "Content-Type: application/json" \
+    -d '{"target_type": "team", "target_id": 1}'
+  ```
+- **Response**:
+  ```json
+  {
+    "id": 1,
+    "target_type": "team",
+    "target_id": 1,
+    "created_at": "2026-06-08T12:03:00.000000+00:00"
+  }
+  ```
+
+- **Request (Post comment with @mention of user_a)**:
+  ```bash
+  curl -i -X POST http://localhost:8000/threads/1/comments \
+    -H "X-API-Key: API_KEY_B" \
+    -H "Content-Type: application/json" \
+    -d '{"content": "Hey @user_a! Please check the pipeline logs."}'
+  ```
+- **Response**:
+  ```json
+  {
+    "id": 1,
+    "thread_id": 1,
+    "user_id": "user_b",
+    "content": "Hey @user_a! Please check the pipeline logs.",
+    "created_at": "2026-06-08T12:04:00.000000+00:00",
+    "updated_at": "2026-06-08T12:04:00.000000+00:00"
+  }
+  ```
+
+### D. WebSocket Feed Broadcast
+Connecting User A to WebSocket feed at `ws://localhost:8000/teams/1/feed?token=API_KEY_A`.
+Upon User B posting the comment above, the following JSON payload is instantly received by User A:
+```json
+{
+  "event": "comment_created",
+  "user_id": "user_b",
+  "team_id": 1,
+  "timestamp": "2026-06-08T12:04:00.000000+00:00",
+  "details": "New comment added by user_b in thread 1"
+}
+```
+
+### E. Server Audit Logging
+Standard log outputs captured on the server during the E2E lifecycle:
+```text
+INFO:url_shortener:Audit Log - Team Created: team_id=1, owner_id=user_a, requesting_user_id=user_a
+INFO:url_shortener:Audit Log - Invitation Sent: team_id=1, email=user_b@example.com, role=member, token=a1b2c3d4e5f6g7h8i9j0, requesting_user_id=user_a
+INFO:url_shortener:Audit Log - Invitation Accepted: team_id=1, email=user_b@example.com, role=member, user_id=user_b
+INFO:url_shortener:Audit Log - Comment Created: thread_id=1, comment_id=1, user_id=user_b
+```
+

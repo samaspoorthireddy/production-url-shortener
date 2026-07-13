@@ -26,3 +26,9 @@ ENV/
 test.db
 artifacts/
 *.tar
+
+# Scratch files & JSON reports
+*.json
+*.txt
+*.log
+

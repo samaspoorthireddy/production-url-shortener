@@ -2,12 +2,14 @@ import logging
 import os
 from typing import Optional
 import redis.asyncio as aioredis
+from app.config import settings
+from app.services.resilience import execute_redis_with_resilience
 
 logger = logging.getLogger("url_shortener")
 
 # Initialize Redis client using pool configuration
-# We load the connection URL from environment variables, fallback to local default
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# We load the connection URL from the centralized configuration settings
+REDIS_URL = settings.redis_url
 
 # Setup connection pool
 redis_client = aioredis.from_url(REDIS_URL, decode_responses=True)
@@ -32,7 +34,9 @@ async def get_redirect(code: str) -> Optional[str]:
     """
     key = f"{KEY_PREFIX}{code}"
     try:
-        val = await redis_client.get(key)
+        val = await execute_redis_with_resilience(
+            lambda: redis_client.get(key)
+        )
         if val is not None:
             logger.info(f"Cache HIT for code '{code}' -> '{val}'")
         else:
@@ -49,7 +53,9 @@ async def set_redirect(code: str, target: str, ttl: int = 300) -> bool:
     """
     key = f"{KEY_PREFIX}{code}"
     try:
-        await redis_client.set(key, target, ex=ttl)
+        await execute_redis_with_resilience(
+            lambda: redis_client.set(key, target, ex=ttl)
+        )
         logger.info(f"Cached redirect mapping: '{code}' -> '{target}' (TTL: {ttl}s)")
         return True
     except Exception as e:
@@ -63,7 +69,9 @@ async def set_negative_lookup(code: str, ttl: int = 60) -> bool:
     """
     key = f"{KEY_PREFIX}{code}"
     try:
-        await redis_client.set(key, NEGATIVE_SENTINEL, ex=ttl)
+        await execute_redis_with_resilience(
+            lambda: redis_client.set(key, NEGATIVE_SENTINEL, ex=ttl)
+        )
         logger.info(f"Cached negative lookup for non-existent code '{code}' (TTL: {ttl}s)")
         return True
     except Exception as e:
@@ -77,7 +85,9 @@ async def invalidate_redirect(code: str) -> bool:
     """
     key = f"{KEY_PREFIX}{code}"
     try:
-        res = await redis_client.delete(key)
+        res = await execute_redis_with_resilience(
+            lambda: redis_client.delete(key)
+        )
         logger.info(f"Cache invalidated for code '{code}', keys deleted: {res}")
         return True
     except Exception as e:
@@ -94,7 +104,9 @@ async def is_analytics_job_processed(job_id: str) -> bool:
     """
     key = f"{DEDUP_PREFIX}{job_id}"
     try:
-        val = await redis_client.get(key)
+        val = await execute_redis_with_resilience(
+            lambda: redis_client.get(key)
+        )
         return val is not None
     except Exception as e:
         logger.warning(f"Redis dedup check failed for job '{job_id}', assuming not processed. Error: {str(e)}")
@@ -109,7 +121,9 @@ async def mark_analytics_job_processed(job_id: str, ttl: int = 86400) -> bool:
     """
     key = f"{DEDUP_PREFIX}{job_id}"
     try:
-        await redis_client.set(key, "1", ex=ttl)
+        await execute_redis_with_resilience(
+            lambda: redis_client.set(key, "1", ex=ttl)
+        )
         logger.info(f"Marked analytics job '{job_id}' as processed (TTL: {ttl}s)")
         return True
     except Exception as e:

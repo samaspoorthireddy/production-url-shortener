@@ -1,6 +1,7 @@
 import hashlib
 import logging
 from datetime import datetime, timezone
+import pybreaker
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import ClickEvent
 from app.services import links_service, cache_service
+from app.services.resilience import execute_db_with_resilience
 from app.dependencies import rate_limit_redirect
 from app.metrics import record_redirect, record_cache_op
 
@@ -56,7 +58,17 @@ async def redirect_to_url(code: str, request: Request, db: Session = Depends(get
     # 2. Cache miss or parsing fallback: Query PostgreSQL database
     if long_url is None or link_id is None:
         record_cache_op("get", "miss")
-        db_link = links_service.get_link_by_code(db, code)
+        try:
+            db_link = await execute_db_with_resilience(lambda: links_service.get_link_by_code(db, code))
+        except pybreaker.CircuitBreakerError as cb_exc:
+            logger.warning(f"Database circuit open on cache miss for code '{code}'. Error: {str(cb_exc)}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database service is temporarily unavailable. Please retry shortly."
+            )
+        except Exception as exc:
+            raise exc
+
         if not db_link:
             # Prevent stampede via negative lookup caching (60s TTL)
             await cache_service.set_negative_lookup(code)
@@ -82,7 +94,14 @@ async def redirect_to_url(code: str, request: Request, db: Session = Depends(get
     else:
         # We got a cache hit — still need to verify expiry against the DB
         # (cache TTL is already shortened, but we re-check if it slipped through)
-        db_link = links_service.get_link_by_code(db, code)
+        try:
+            db_link = await execute_db_with_resilience(lambda: links_service.get_link_by_code(db, code))
+        except Exception as e:
+            logger.warning(
+                f"Database unavailable during cache hit verification for code '{code}'. "
+                f"Proceeding to redirect client (graceful degradation). Error: {str(e)}"
+            )
+            db_link = None
 
     # -----------------------------------------------------------------------
     # Lifecycle Guard 1: Expiry check (authoritative — always use DB time)
@@ -104,11 +123,21 @@ async def redirect_to_url(code: str, request: Request, db: Session = Depends(get
     # Lifecycle Guard 2: Click cap check
     # -----------------------------------------------------------------------
     if db_link and db_link.max_clicks is not None:
-        click_count = (
-            db.query(func.count(ClickEvent.id))
-            .filter(ClickEvent.link_id == link_id)
-            .scalar()
-        ) or 0
+        try:
+            click_count = await execute_db_with_resilience(
+                lambda: (
+                    db.query(func.count(ClickEvent.id))
+                    .filter(ClickEvent.link_id == link_id)
+                    .scalar()
+                ) or 0
+            )
+        except Exception as e:
+            logger.warning(
+                f"Database unavailable during click limit check for link_id={link_id}. "
+                f"Bypassing click limit enforcement. Error: {str(e)}"
+            )
+            click_count = 0
+
         if click_count >= db_link.max_clicks:
             await cache_service.invalidate_redirect(code)
             raise HTTPException(

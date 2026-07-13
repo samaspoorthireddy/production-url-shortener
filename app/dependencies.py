@@ -71,6 +71,17 @@ class RateLimiter:
         now = time.time()
 
         with self.lock:
+            # Amortized dictionary pruning to prevent memory leak of inactive client IPs.
+            # 5% probability check on incoming requests keeps overhead negligible (O(1) amortized).
+            import random
+            if random.random() < 0.05:
+                stale_keys = [
+                    k for k, timestamps in self.requests.items()
+                    if not timestamps or now - timestamps[-1] >= period
+                ]
+                for k in stale_keys:
+                    del self.requests[k]
+
             if key not in self.requests:
                 self.requests[key] = []
 

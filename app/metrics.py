@@ -63,6 +63,12 @@ STORED_URLS_COUNT = Gauge(
     "Total number of shortened URLs stored in the database",
 )
 
+# System Gauge — tracks process memory usage in bytes
+PROCESS_MEMORY_BYTES = Gauge(
+    "process_memory_bytes",
+    "Current RSS memory usage of the process in bytes",
+)
+
 
 def _normalize_endpoint(path: str) -> str:
     """
@@ -126,6 +132,7 @@ def record_security_block(reason: str):
 
 def get_metrics_output() -> tuple[bytes, str]:
     """Returns (body_bytes, content_type) for the /metrics endpoint."""
+    # 1. Update database connection count gauge
     try:
         from database import SessionLocal
         from models import Link
@@ -138,4 +145,17 @@ def get_metrics_output() -> tuple[bytes, str]:
     except Exception:
         # Prevent metrics endpoint from crashing if db is unreachable
         pass
+
+    # 2. Update process RSS memory usage gauge
+    try:
+        import resource
+        import sys
+        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform != 'darwin':
+            # Convert Linux KB to bytes
+            usage *= 1024
+        PROCESS_MEMORY_BYTES.set(usage)
+    except Exception:
+        pass
+
     return generate_latest(REGISTRY), CONTENT_TYPE_LATEST

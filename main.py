@@ -12,9 +12,12 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings, Environment
 from database import Base, engine
-from app.routers import links, redirect, webhooks
+from app.routers import links, redirect, webhooks, teams, activity, comments, notifications
+from sqlalchemy.exc import TimeoutError as DBTimeoutError, OperationalError as DBOperationalError
 from app.routers import links_v2
 from app.metrics import record_request, get_metrics_output
+
+start_time = time.time()
 
 # ContextVar to store request ID across the async request lifecycle
 request_id_var = contextvars.ContextVar("request_id", default="N/A")
@@ -71,7 +74,10 @@ root_logger.setLevel(log_level)
 logger = logging.getLogger("url_shortener")
 
 # Automatically generate database tables if they do not exist
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    logger.error(f"Database table generation failed on startup: {str(e)}")
 
 # Resilient dynamic alters for Module 17D and 17C
 try:
@@ -275,6 +281,30 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return response
 
 
+@app.exception_handler(DBTimeoutError)
+async def database_timeout_exception_handler(request: Request, exc: DBTimeoutError):
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.error(f"Database connection pool exhausted or query timed out (checkout timeout): {str(exc)}")
+    return build_error_response(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="SERVICE_UNAVAILABLE",
+        message="Database connection pool exhausted or query timed out. Please retry shortly.",
+        request_id=req_id
+    )
+
+
+@app.exception_handler(DBOperationalError)
+async def database_operational_exception_handler(request: Request, exc: DBOperationalError):
+    req_id = getattr(request.state, "request_id", "N/A")
+    logger.error(f"Database connectivity failure: {str(exc)}")
+    return build_error_response(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        code="SERVICE_UNAVAILABLE",
+        message="Database service is temporarily unavailable. Please retry shortly.",
+        request_id=req_id
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     req_id = getattr(request.state, "request_id", "N/A")
@@ -307,6 +337,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(links.router, prefix="/v1")
 app.include_router(webhooks.router, prefix="/v1")
 app.include_router(links_v2.router, prefix="/v2")
+app.include_router(teams.router)
+app.include_router(activity.router)
+app.include_router(comments.router)
+app.include_router(notifications.router)
 app.include_router(redirect.router)
 
 
@@ -346,6 +380,14 @@ def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/live", tags=["System"])
+async def live_check():
+    """
+    Fast and lightweight liveness check.
+    """
+    return {"ok": True}
+
+
 @app.get("/ready", tags=["System"])
 async def readiness_check():
     """
@@ -355,35 +397,47 @@ async def readiness_check():
     from database import SessionLocal
     from app.services.cache_service import redis_client
 
+    checks = {}
+    ready = True
+
     # 1. Check PostgreSQL Database Connectivity
     try:
         db = SessionLocal()
         try:
-            # Execute simple, lightweight verification query with a strict 2-second timeout
+            # Set statement timeout for this session to 2 seconds to fail fast
+            db.execute(text("SET statement_timeout = 2000"))
             db.execute(text("SELECT 1"))
+            checks["database"] = "connected"
         except Exception as query_exc:
-            raise query_exc
+            logger.error(f"Readiness check database query failure: {query_exc}")
+            checks["database"] = "disconnected"
+            ready = False
         finally:
             db.close()
     except Exception as e:
-        logger.error(f"Readiness check failed: Database is unreachable. Error: {str(e)}")
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unready", "reason": "Database connection failed"}
-        )
+        logger.error(f"Readiness check database session failure: {e}")
+        checks["database"] = "disconnected"
+        ready = False
 
     # 2. Check Redis Cache Connectivity
     try:
-        # Ping Redis with a fast liveness check
-        await redis_client.ping()
+        # Ping Redis with a fast liveness check and 2s timeout
+        import asyncio
+        await asyncio.wait_for(redis_client.ping(), timeout=2.0)
+        checks["cache"] = "connected"
     except Exception as e:
-        logger.error(f"Readiness check failed: Redis is unreachable. Error: {str(e)}")
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unready", "reason": "Redis connection failed"}
-        )
+        logger.error(f"Readiness check redis failure: {e}")
+        checks["cache"] = "disconnected"
+        ready = False
 
-    return {"status": "ready"}
+    # 3. Include Uptime
+    checks["uptime_seconds"] = int(time.time() - start_time)
+
+    status_code = 200 if ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={"ok": ready, "checks": checks}
+    )
 
 
 @app.get("/metrics", tags=["System"], include_in_schema=False)
