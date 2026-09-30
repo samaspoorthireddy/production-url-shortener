@@ -146,6 +146,8 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
             tail -n 150 test_results.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
+            LOG_URL=$(curl -s --data-binary @test_results.txt https://paste.rs)
+            echo "Test failure log uploaded to: $LOG_URL"
             exit 1
           }
 
