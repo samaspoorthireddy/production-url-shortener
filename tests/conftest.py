@@ -1,18 +1,24 @@
-from main import app
-from database import Base, get_db
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine, text
-from fastapi.testclient import TestClient
-import pytest
 import os
 import sys
 
-# Force pytest to use isolated test database URL
-os.environ["DATABASE_URL"] = "postgresql://postgres:postgres@localhost:5432/upsk_sdf_test"
+# Configure default test environment variables BEFORE any application imports
+os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/upsk_sdf_test")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+os.environ.setdefault("APP_ENV", "development")
+os.environ.setdefault("PORT", "8000")
+os.environ.setdefault("JWT_SECRET", "testsecretkey12345")
+os.environ.setdefault("CORS_ORIGIN", "http://localhost:3000")
 
 # Add project root to sys.path to enable imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient
+
+from main import app
+from database import Base, get_db
 
 # Create engine and session factory specifically for tests
 engine = create_engine(os.environ["DATABASE_URL"])
