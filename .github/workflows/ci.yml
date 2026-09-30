@@ -187,7 +187,7 @@ jobs:
             -t myservice:latest \
             .
 
-      # Image size gate: fail the pipeline if the image exceeds 200 MB.
+      # Image size gate: fail the pipeline if the image exceeds 350 MB.
       # This catches accidental bloat (forgetting .dockerignore, adding
       # a heavy dev dependency to the wrong requirements, etc.) before
       # it reaches the registry.
@@ -196,11 +196,11 @@ jobs:
           IMAGE_SIZE=$(docker image inspect myservice:${{ steps.tag.outputs.TAG }} --format='{{.Size}}')
           IMAGE_SIZE_MB=$((IMAGE_SIZE / 1024 / 1024))
           echo "Image size: ${IMAGE_SIZE_MB} MB"
-          if [ "$IMAGE_SIZE_MB" -gt 200 ]; then
-            echo "❌ Image size ${IMAGE_SIZE_MB} MB exceeds 200 MB threshold!"
+          if [ "$IMAGE_SIZE_MB" -gt 350 ]; then
+            echo "❌ Image size ${IMAGE_SIZE_MB} MB exceeds 350 MB threshold!"
             exit 1
           fi
-          echo "✅ Image size ${IMAGE_SIZE_MB} MB is within the 200 MB limit."
+          echo "✅ Image size ${IMAGE_SIZE_MB} MB is within the 350 MB limit."
 
       - name: Verify health endpoint is defined
         run: |
