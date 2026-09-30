@@ -46,11 +46,9 @@ README.md
 
 ## Installation
 
-```bash
-git clone <repository-url>
+git clone https://github.com/samaspoorthireddy/url-shortener.git
 cd url-shortener
 pip install -r requirements.txt
-```
 
 ## Run the Application
 
