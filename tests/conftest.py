@@ -2,8 +2,8 @@ import os
 import sys
 
 # Configure default test environment variables BEFORE any application imports
-os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/upsk_sdf_test")
-os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:5432/upsk_sdf_test")
+os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6379/0")
 os.environ.setdefault("APP_ENV", "development")
 os.environ.setdefault("PORT", "8000")
 os.environ.setdefault("JWT_SECRET", "testsecretkey12345")
