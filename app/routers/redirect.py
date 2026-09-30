@@ -11,6 +11,7 @@ from models import ClickEvent
 from app.services import links_service, cache_service
 from app.services.resilience import execute_db_with_resilience
 from app.dependencies import rate_limit_redirect
+from app.config import settings
 from app.metrics import record_redirect, record_cache_op
 
 logger = logging.getLogger("url_shortener")
@@ -151,7 +152,7 @@ async def redirect_to_url(code: str, request: Request, db: Session = Depends(get
 
     # Privacy Safeguard: Salt and Hash the IP address (never store raw PII)
     client_ip = request.client.host if request.client else "unknown"
-    ip_salt = "upsk-sdf-analytics-salt-2026"
+    ip_salt = settings.ip_hash_salt
     ip_hash = hashlib.sha256(f"{client_ip}:{ip_salt}".encode("utf-8")).hexdigest()
 
     # Asynchronously record click events via Celery background tasks
