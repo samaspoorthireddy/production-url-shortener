@@ -14,9 +14,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import time
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import OperationalError
 from fastapi.testclient import TestClient
 
 from main import app
@@ -30,16 +29,28 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     """
-    Session-scoped fixture that waits for PostgreSQL, builds the schema once at the start
-    and completely cleans the database at the end of the entire test suite.
+    Session-scoped fixture that waits for PostgreSQL, creates target database if missing,
+    builds the schema once at the start, and cleans tables at the end.
     """
-    # Wait for PostgreSQL service container to accept connections (up to 15 retries)
-    for i in range(15):
+    db_url = os.environ["DATABASE_URL"]
+
+    # Retry loop connecting to postgres default db to ensure server is ready and db exists
+    for i in range(20):
         try:
+            if "postgresql" in db_url:
+                base_url = db_url.rsplit('/', 1)[0] + '/postgres'
+                db_name = db_url.rsplit('/', 1)[1]
+                temp_engine = create_engine(base_url, isolation_level="AUTOCOMMIT")
+                with temp_engine.connect() as conn:
+                    res = conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname='{db_name}'"))
+                    if not res.scalar():
+                        conn.execute(text(f"CREATE DATABASE {db_name}"))
+                temp_engine.dispose()
             with engine.connect():
                 break
-        except OperationalError:
-            if i == 14:
+        except Exception as e:
+            if i == 19:
+                print(f"Database setup failed after retries: {e}")
                 raise
             time.sleep(1)
 
