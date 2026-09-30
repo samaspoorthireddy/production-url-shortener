@@ -92,9 +92,9 @@ jobs:
           POSTGRES_DB: upsk_sdf_test
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -133,14 +133,14 @@ jobs:
       - name: Run tests
         env:
           PYTHONPATH: .
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/upsk_sdf_test
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/upsk_sdf_test
           REDIS_URL: redis://127.0.0.1:6379/0
           APP_ENV: development
           PORT: 8000
           JWT_SECRET: testsecretkey12345
           CORS_ORIGIN: http://localhost:3000
         run: |
-          pytest tests/ --tb=short
+          pytest tests/ -v --tb=short
 
   # ─────────────────────────────────────────────
   # STAGE 3: Docker Build
