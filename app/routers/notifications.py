@@ -22,7 +22,7 @@ def get_notifications(
     """
     notifications = db.query(Notification).filter(
         Notification.recipient_id == current_user,
-        Notification.is_read == False
+        Notification.is_read.is_(False)
     ).order_by(Notification.created_at.desc()).all()
     return notifications
 

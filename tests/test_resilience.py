@@ -24,6 +24,7 @@ async def test_retry_with_backoff_success():
 async def test_retry_with_backoff_transient_failures_then_success():
     """Verify retry_with_backoff retries on transient errors and eventually succeeds."""
     call_count = 0
+
     async def mock_fn():
         nonlocal call_count
         call_count += 1

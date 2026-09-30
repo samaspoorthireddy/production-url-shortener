@@ -1,5 +1,4 @@
 import logging
-import os
 from typing import Optional
 import redis.asyncio as aioredis
 from app.config import settings

@@ -7,6 +7,7 @@ import redis.exceptions as redis_exc
 
 logger = logging.getLogger("url_shortener")
 
+
 # Custom listener to log state changes in circuit breakers
 class BreakerLogger(pybreaker.CircuitBreakerListener):
     def __init__(self, name: str):
@@ -22,6 +23,7 @@ class BreakerLogger(pybreaker.CircuitBreakerListener):
             }
         )
 
+
 # Define DB circuit breaker: Open after 5 consecutive failures, retry after 30s
 db_breaker = pybreaker.CircuitBreaker(
     fail_max=5,
@@ -35,6 +37,7 @@ redis_breaker = pybreaker.CircuitBreaker(
     reset_timeout=30,
     listeners=[BreakerLogger("redis")]
 )
+
 
 async def call_async_with_breaker(breaker: pybreaker.CircuitBreaker, func, *args, **kwargs):
     """
@@ -64,6 +67,7 @@ async def call_async_with_breaker(breaker: pybreaker.CircuitBreaker, func, *args
     else:
         state._handle_success()
         return result
+
 
 async def retry_with_backoff(
     fn,
@@ -115,6 +119,7 @@ async def retry_with_backoff(
 
     raise last_error
 
+
 async def execute_db_with_resilience(fn, timeout: float = 1.0):
     """
     Executes a blocking database function with a circuit breaker, timeout,
@@ -142,6 +147,7 @@ async def execute_db_with_resilience(fn, timeout: float = 1.0):
     return await retry_with_backoff(
         lambda: call_async_with_breaker(db_breaker, run_query)
     )
+
 
 async def execute_redis_with_resilience(fn, timeout: float = 0.5):
     """

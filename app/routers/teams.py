@@ -555,5 +555,3 @@ def remove_team_member(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error occurred: {str(e)}"
         )
-
-

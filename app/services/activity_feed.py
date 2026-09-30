@@ -1,6 +1,7 @@
 from typing import Dict, List
 from fastapi import WebSocket
 
+
 class ActivityFeedManager:
     """
     Manages active WebSocket connections for the real-time team activity feed.
@@ -51,5 +52,6 @@ class ActivityFeedManager:
                 except Exception:
                     # Clean up the connection if broadcasting fails (e.g. client disconnected silently)
                     self.disconnect(team_id, user_id, websocket)
+
 
 activity_feed_manager = ActivityFeedManager()

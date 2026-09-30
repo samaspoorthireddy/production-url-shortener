@@ -1,4 +1,4 @@
-from fastapi import APIRouter, WebSocket, Depends, HTTPException, status
+from fastapi import APIRouter, WebSocket, Depends, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Team, UserTeam
@@ -9,6 +9,7 @@ import logging
 logger = logging.getLogger("url_shortener")
 
 router = APIRouter()
+
 
 @router.websocket("/teams/{team_id}/feed")
 async def team_activity_feed(
@@ -55,7 +56,7 @@ async def team_activity_feed(
         while True:
             # Block waiting for any client messages. Since it's a read-only activity feed,
             # we don't expect messages from the client. But we must listen to detect disconnects.
-            data = await websocket.receive_text()
+            await websocket.receive_text()
     except Exception as e:
         logger.info(f"WebSocket disconnected for user {user_id} on team {team_id}: {str(e)}")
     finally:

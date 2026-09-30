@@ -18,7 +18,7 @@ class MentionService:
     def extract_mentions(text: str) -> List[str]:
         """
         Parses a text string and extracts unique @usernames.
-        
+
         Rules:
         - Normalizes all extracted usernames to lowercase.
         - Usernames must start with '@' preceded by start of string or whitespace.
@@ -50,7 +50,7 @@ class MentionService:
         Processes mentions in comment content. Checks usernames against active registry,
         creates notifications for valid mentioned users (silently ignoring unknown users),
         and adds them to the DB session without committing.
-        
+
         Returns the list of valid usernames that were processed.
         """
         candidate_usernames = cls.extract_mentions(text)

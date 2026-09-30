@@ -1,4 +1,3 @@
-import os
 import json
 import contextvars
 import logging
@@ -37,8 +36,9 @@ class JSONFormatter(logging.Formatter):
             "request_id": getattr(record, "request_id", "N/A"),
             "message": record.getMessage()
         }
-        
+
         # Include custom extra fields passed to logger (like environment, port, etc.)
+
         standard_fields = {
             "args", "asctime", "created", "exc_info", "exc_text", "filename",
             "funcName", "levelname", "levelno", "lineno", "message", "module",
