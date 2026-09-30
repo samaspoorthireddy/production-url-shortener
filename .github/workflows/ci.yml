@@ -140,7 +140,14 @@ jobs:
           JWT_SECRET: testsecretkey12345
           CORS_ORIGIN: http://localhost:3000
         run: |
-          pytest tests/ -v --tb=short
+          set -o pipefail
+          pytest tests/ -v --tb=short 2>&1 | tee test_results.txt || {
+            echo "## Test Failures" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 150 test_results.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
   # ─────────────────────────────────────────────
   # STAGE 3: Docker Build
