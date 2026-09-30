@@ -92,7 +92,7 @@ jobs:
           POSTGRES_DB: upsk_sdf_test
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
-          - 5433:5432
+          - 5432:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -109,6 +109,11 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+    permissions:
+      contents: write
+      packages: write
+      statuses: write
 
     steps:
       - name: Checkout code
@@ -133,7 +138,7 @@ jobs:
       - name: Run tests
         env:
           PYTHONPATH: .
-          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/upsk_sdf_test
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/upsk_sdf_test
           REDIS_URL: redis://127.0.0.1:6379/0
           APP_ENV: development
           PORT: 8000
@@ -142,12 +147,25 @@ jobs:
         run: |
           set -o pipefail
           pytest tests/ -v --tb=short 2>&1 | tee test_results.txt || {
-            echo "## Test Failures" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            tail -n 150 test_results.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            LOG_URL=$(curl -s --data-binary @test_results.txt https://paste.rs)
-            echo "Test failure log uploaded to: $LOG_URL"
+            LOG_BODY=$(tail -n 120 test_results.txt)
+            python3 -c "
+import os, json, urllib.request
+body = '### ❌ Test Failure Log\n\`\`\`\n' + '''$LOG_BODY''' + '\n\`\`\`'
+data = json.dumps({'body': body}).encode('utf-8')
+req = urllib.request.Request(
+    'https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments',
+    data=data,
+    headers={
+        'Authorization': 'token ${{ secrets.GITHUB_TOKEN }}',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Python'
+    }
+)
+try:
+    urllib.request.urlopen(req)
+except Exception as e:
+    print('Failed to post comment:', e)
+"
             exit 1
           }
 
