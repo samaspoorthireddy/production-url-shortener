@@ -35,12 +35,12 @@ flowchart TD
 
 ## ✨ Key Features
 
-- **⚡ Sub-Millisecond Redirections**: Read-through Redis caching pattern bypasses database lookups on hot URL paths.
+- **Low-Latency Redirections**: Read-through Redis caching reduces database lookups for frequently accessed URLs.
 - **🔄 Asynchronous Telemetry Pipeline**: Celery worker integration offloads analytics processing (IP lookup, user-agent parsing, click metrics) from the critical redirect path.
-- **🛡️ Distributed Rate Limiting**: Redis-backed sliding window rate limiter protects endpoints against DDoS and API abuse (`HTTP 429`).
+- 🛡️ **Distributed Rate Limiting**: Redis-backed sliding-window rate limiting helps control excessive requests and API abuse (HTTP 429).
 - **👥 Multi-Tenant Team Collaboration**: Granular Role-Based Access Control (RBAC: `Owner`, `Admin`, `Member`, `Viewer`) supporting target-generic `CommentThread` discussions and tokenized team invitations.
 - **📡 Real-Time WebSockets Feed**: Stateful connection manager delivering real-time activity updates to team channels (`/teams/{team_id}/feed`).
-- **🔐 Enterprise Security & IDOR Protection**: Centralized middleware preventing Insecure Direct Object References (IDOR), SQL injection, and parameter tampering.
+- 🔐 **Security Controls**: Centralized middleware and validation for authorization, SQL injection prevention, and request parameter validation.
 - **📊 Observability & Health Probes**: Prometheus `/metrics` endpoint, coupled with Kubernetes `/health` (liveness) and `/ready` (readiness) probes verifying DB and Redis connectivity.
 
 ---
@@ -56,7 +56,7 @@ flowchart TD
 | **Task Queue** | Celery + Redis Broker |
 | **Real-Time Communications** | WebSockets |
 | **Validation & Settings** | Pydantic v2, Pydantic-Settings |
-| **Testing & Mocking** | Pytest, TestClient, Pytest-Cov (224 Tests) |
+| **Testing & Mocking** | Pytest, TestClient, Pytest-Cov |
 | **Containerization & CI/CD** | Docker, Docker Compose, Kubernetes, Helm, GitHub Actions |
 | **Monitoring** | Prometheus Client, Custom JSON Loggers |
 
@@ -203,7 +203,6 @@ pytest --cov=app --cov=models
 
 **Spoorthi Reddy Sama**  
 - **GitHub:** [@samaspoorthireddy](https://github.com/samaspoorthireddy)
-- **Role Target:** Special Engineer Trainee (Software Development / Manual Testing)
 
 ---
 
