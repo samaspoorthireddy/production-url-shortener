@@ -15,18 +15,19 @@ An enterprise-ready **URL Shortener and Analytics Engine** designed for high-con
 
 ```mermaid
 flowchart TD
-    Client[Client / User Agent] -->|1. Request /r/{code}| API[FastAPI Application Gateway]
+    Client[Client / User Agent] -->|1. HTTP Request /r/code| API[FastAPI Gateway]
     API -->|2. Check Cache| Redis[(Redis Cache)]
-    Redis -- Cache Hit -->|3a. Sub-ms Redirect| Client
-    Redis -- Cache Miss -->|3b. Query DB| PG[(PostgreSQL Database)]
+    Redis -->|3a. Cache Hit: Sub-ms Redirect| Client
+    Redis -->|3b. Cache Miss: Query DB| PG[(PostgreSQL Database)]
     PG -->|4. Populate Cache| Redis
     API -->|5. Dispatch Telemetry Event| Queue[(Redis Celery Broker)]
     Queue -->|6. Async Process Click| Worker[Celery Analytics Worker]
     Worker -->|7. Persist Analytics| PG
-    
-    subgraph Real-Time & Collaboration
-        ClientWS[Client Browser] <-->|WebSocket Stream /teams/{id}/feed| WSManager[Activity Feed Connection Manager]
-        WSManager <-->|Broadcast Events| PG
+
+    subgraph RealTime ["Real-Time & Collaboration System"]
+        ClientWS[Client Browser] -->|WebSocket Stream /teams/id/feed| WSManager[Activity Feed Manager]
+        WSManager -->|Broadcast Real-Time Events| ClientWS
+        WSManager -->|Fetch & Sync State| PG
     end
 ```
 
@@ -67,30 +68,37 @@ flowchart TD
 .
 ├── app/
 │   ├── config.py             # Pydantic environment configuration
-│   ├── dependencies.py       # Auth dependencies (get_current_user) & Rate Limiter
+│   ├── dependencies.py       # Auth dependencies & Rate Limiter
 │   ├── metrics.py            # Prometheus metrics & memory gauges
 │   ├── celery_app.py         # Celery broker configuration
-│   ├── tasks.py              # Asynchronous analytics task worker definitions
+│   ├── tasks.py              # Asynchronous analytics task definitions
 │   ├── routers/              # Modular API Routers
-│   │   ├── activity.py       # WebSocket real-time activity feed router
+│   │   ├── activity.py       # WebSocket real-time activity feed
 │   │   ├── comments.py       # Discussion threads & comments API
 │   │   ├── links.py          # Short link CRUD management (v1)
-│   │   ├── links_v2.py       # Enhanced link management supporting tags (v2)
-│   │   ├── notifications.py  # User mention & unread notification endpoints
+│   │   ├── links_v2.py       # Enhanced link management (v2)
+│   │   ├── notifications.py  # Mentions & unread notification endpoints
 │   │   ├── redirect.py       # Core fast-path URL redirection router
-│   │   ├── teams.py          # Team CRUD, invitations & membership RBAC
-│   │   └── webhooks.py       # Event webhook registration & triggers
+│   │   ├── teams.py          # Team CRUD & RBAC membership management
+│   │   └── webhooks.py       # Event webhook registrations
 │   ├── schemas/              # Pydantic validation schemas
 │   └── services/             # Core business logic services
 │       ├── activity_feed.py  # WebSocket connection manager
 │       ├── cache_service.py  # Redis read-through cache service
 │       ├── mention_service.py# Mention extractor & notification service
 │       └── resilience.py     # Circuit breaker & retry handlers
-├── docs/                     # Architectural decision records & runbooks
-├── tests/                    # Unit, integration, and capstone end-to-end tests
+├── docs/                     # Documentation & System Architecture Docs
+│   ├── event-pipeline-design-doc.md # Pipeline architecture design
+│   ├── rate-limiting-design-doc.md  # Rate limiting architecture design
+│   ├── security_findings.md        # Security audit findings
+│   ├── failure_modes.md            # Failure mode analysis
+│   ├── postmortem.md               # Production incident postmortem
+│   ├── rollback_plan.md            # Deployment rollback plan
+│   └── runbooks/                   # Operational Triage Runbooks
+├── tests/                    # 224 Automated Integration & Unit Tests
 ├── main.py                   # FastAPI entrypoint, middleware & exception handlers
-├── models.py                 # SQLAlchemy declarative base data models
-├── database.py               # Database engine & session dependency (SessionLocal)
+├── models.py                 # SQLAlchemy declarative base models
+├── database.py               # Database engine & session management
 ├── Dockerfile                # Multi-stage production container build
 ├── docker-compose.yml        # Multi-service stack composition
 └── requirements.txt          # Production dependencies
@@ -137,14 +145,14 @@ flowchart TD
 - Python 3.10+
 - PostgreSQL 15+
 - Redis 7+
-- Docker & Docker Compose (Optional for containerized run)
+- Docker & Docker Compose (Optional)
 
 ### Local Environment Setup
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/samaspoorthireddy/url-shortener.git
-   cd url-shortener
+   git clone https://github.com/samaspoorthireddy/production-url-shortener.git
+   cd production-url-shortener
    ```
 
 2. **Create and activate a virtual environment:**
@@ -183,22 +191,11 @@ docker-compose up --build
 
 ## 🧪 Testing & Verification
 
-The project includes an extensive automated test suite covering unit logic, integration pathways, authorization boundaries, and WebSockets.
-
-Run the test suite with coverage report:
+Run the automated test suite with coverage report:
 
 ```bash
 pytest --cov=app --cov=models
 ```
-
----
-
-## 📈 Monitoring & Incident Runbooks
-
-Operational runbooks and failure mode strategies are documented in the [`docs/`](./docs/) directory:
-- [`docs/runbooks/runbook-high-error-rate.md`](./docs/runbooks/runbook-high-error-rate.md): Triage instructions for HTTP 5xx spikes.
-- [`docs/runbooks/runbook-circuit-breaker-open.md`](./docs/runbooks/runbook-circuit-breaker-open.md): Resolution steps for external service circuit breakers.
-- [`docs/rollback_plan.md`](./docs/rollback_plan.md): Linear release rollback procedures.
 
 ---
 

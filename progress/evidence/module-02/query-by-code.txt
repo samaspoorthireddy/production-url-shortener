@@ -1,6 +1,0 @@
-Initializing database tables...
-Inserting new link with code: testslug
-inserted code: testslug
-Querying link by code: testslug
-selected code: testslug
-matched long_url: https://google.com

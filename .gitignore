@@ -1,5 +1,6 @@
 # Environment variables (contains production secrets!)
 .env
+.env.local
 
 # Python caching & bytecode
 __pycache__/
@@ -16,19 +17,20 @@ htmlcov/
 venv/
 ENV/
 
-# IDE & Editor files
+# IDE, Editor & OS files
 .vscode/
 .idea/
 *.swp
 *.swo
+.DS_Store
 
-# Local databases & artifacts
+# Local databases & temp artifacts
 test.db
 artifacts/
+progress/
 *.tar
 
 # Scratch files & JSON reports
 *.json
 *.txt
 *.log
-
