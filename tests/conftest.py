@@ -18,12 +18,16 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 
-from main import app
+import database
 from database import Base, get_db
+from main import app
 
 # Create engine and session factory specifically for tests
 engine = create_engine(os.environ["DATABASE_URL"], pool_pre_ping=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Bind database.SessionLocal to test engine for endpoints like /ready
+database.SessionLocal = TestingSessionLocal
 
 
 @pytest.fixture(scope="session", autouse=True)
