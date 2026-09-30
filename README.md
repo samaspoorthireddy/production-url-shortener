@@ -7,7 +7,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Supported-2496ED.svg)](https://www.docker.com/)
 [![Tests](https://img.shields.io/badge/Tests-224%20Passing-brightgreen.svg)]()
 
-An enterprise-ready **URL Shortener and Analytics Engine** designed for high-concurrency redirection with sub-millisecond latency, asynchronous click telemetry processing, real-time WebSocket activity feeds, and granular Role-Based Access Control (RBAC).
+A URL shortening and analytics platform built with FastAPI, PostgreSQL, Redis, and Celery, featuring low-latency URL redirection, asynchronous click analytics, real-time WebSocket updates, and role-based access control (RBAC).
 
 ---
 
@@ -95,7 +95,7 @@ flowchart TD
 │   ├── postmortem.md               # Production incident postmortem
 │   ├── rollback_plan.md            # Deployment rollback plan
 │   └── runbooks/                   # Operational Triage Runbooks
-├── tests/                    # 224 Automated Integration & Unit Tests
+├── tests/                    # Automated Integration & Unit Tests
 ├── main.py                   # FastAPI entrypoint, middleware & exception handlers
 ├── models.py                 # SQLAlchemy declarative base models
 ├── database.py               # Database engine & session management
