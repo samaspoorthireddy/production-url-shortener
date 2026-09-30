@@ -145,29 +145,15 @@ jobs:
           JWT_SECRET: testsecretkey12345
           CORS_ORIGIN: http://localhost:3000
         run: |
-          set -o pipefail
-          pytest tests/ -v --tb=short 2>&1 | tee test_results.txt || {
-            LOG_BODY=$(tail -n 120 test_results.txt)
-            python3 -c "
-import os, json, urllib.request
-body = '### ❌ Test Failure Log\n\`\`\`\n' + '''$LOG_BODY''' + '\n\`\`\`'
-data = json.dumps({'body': body}).encode('utf-8')
-req = urllib.request.Request(
-    'https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/comments',
-    data=data,
-    headers={
-        'Authorization': 'token ${{ secrets.GITHUB_TOKEN }}',
-        'Content-Type': 'application/json',
-        'User-Agent': 'Python'
-    }
-)
-try:
-    urllib.request.urlopen(req)
-except Exception as e:
-    print('Failed to post comment:', e)
-"
-            exit 1
-          }
+          pytest tests/ -v --tb=short | tee test_results.txt
+
+      - name: Print test failure logs
+        if: failure()
+        run: |
+          if [ -f test_results.txt ]; then
+            echo "=================== TEST RESULTS FAILURE LOG ==================="
+            cat test_results.txt
+          fi
 
   # ─────────────────────────────────────────────
   # STAGE 3: Docker Build
