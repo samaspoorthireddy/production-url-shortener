@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     jwt_secret: str
+    ip_hash_salt: str
     cors_origin: str
     log_level: str = "info"
 
