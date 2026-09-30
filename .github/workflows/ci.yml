@@ -84,8 +84,6 @@ jobs:
 
     services:
       # Spin up a real PostgreSQL container for tests.
-      # This matches production — tests against SQLite would miss
-      # psycopg2-specific behaviors and query differences.
       postgres:
         image: postgres:15-alpine
         env:
@@ -96,6 +94,17 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Spin up a Redis container for cache & rate limiting tests.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -123,6 +132,11 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/upsk_sdf_test
+          REDIS_URL: redis://localhost:6379/0
+          APP_ENV: development
+          PORT: 8000
+          JWT_SECRET: testsecretkey12345
+          CORS_ORIGIN: http://localhost:3000
         run: |
           pytest tests/ \
             --tb=short \
