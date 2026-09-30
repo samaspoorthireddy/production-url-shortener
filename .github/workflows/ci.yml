@@ -132,6 +132,7 @@ jobs:
 
       - name: Run tests
         env:
+          PYTHONPATH: .
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/upsk_sdf_test
           REDIS_URL: redis://127.0.0.1:6379/0
           APP_ENV: development
@@ -139,10 +140,7 @@ jobs:
           JWT_SECRET: testsecretkey12345
           CORS_ORIGIN: http://localhost:3000
         run: |
-          pytest tests/ \
-            --tb=short \
-            --maxfail=5 \
-            -q
+          pytest tests/ --tb=short
 
   # ─────────────────────────────────────────────
   # STAGE 3: Docker Build
