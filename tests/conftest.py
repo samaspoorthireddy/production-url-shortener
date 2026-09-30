@@ -36,7 +36,7 @@ def setup_test_db():
     # Wait for PostgreSQL service container to accept connections (up to 15 retries)
     for i in range(15):
         try:
-            with engine.connect() as conn:
+            with engine.connect():
                 break
         except OperationalError:
             if i == 14:
